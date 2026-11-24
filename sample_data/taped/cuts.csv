@@ -1,0 +1,5 @@
+cut,start,end,target,kind,reel
+R1-A,0,500,0,KEEP,R1
+R2-A,0,400,500,KEEP,R2
+R3-A,0,400,900,KEEP,R3
+R4-X,0,500,,REMOVE,R4

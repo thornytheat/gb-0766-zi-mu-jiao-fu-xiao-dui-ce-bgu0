@@ -5,12 +5,23 @@
 | 模块 | 使用者动作 | 入口 | 核心文件 | 测试 |
 |---|---|---|---|---|
 | M1 字幕文件采信 | 核对逐行隔离与重复字幕 | `/sheet/source` `/api/check/source` | `app/modules/source/service.py` | `tests/test_source.py` |
-| M2 帧率与丢帧约束 | 复查非法标签与精确换算 | `/sheet/clock` `/api/check/clock` | `app/modules/clock/timecode.py` | `tests/test_clock.py` |
+| M2 帧率与丢帧约束 | 复查非法标签、精确换算与卷偏移 | `/sheet/clock` `/api/check/clock` | `app/modules/clock/timecode.py` `app/modules/clock/sync.py` | `tests/test_clock.py` `tests/test_sync.py` |
 | M3 切版段映射 | 按切版重建目标帧 | `/` `/api/check/edits` | `app/modules/edits/contract.py` `app/modules/edits/mapping.py` | `tests/test_edits.py` |
 | M4 字幕冲突定位 | 定位同轨重叠帧与原行组 | `/sheet/overlaps` `/api/check/overlaps` | `app/modules/overlaps/service.py` | `tests/test_overlaps.py` |
 | M5 时长与丢段对账 | 查看并集覆盖守恒 | `/sheet/balance` `/api/check/balance` | `app/modules/balance/service.py` | `tests/test_balance.py` |
 | M6 批次留档复跑 | 保存原件并逐值复算 | `/sheet/runs` `POST /api/runs` | `app/modules/runs/files.py` `app/modules/runs/service.py` | `tests/test_runs.py` |
-| M7 交付证据签发 | 下载经散列核验的交付证据 | `/sheet/delivery` `/api/delivery/<key>/export` | `app/modules/delivery/checks.py` | `tests/test_delivery.py` |
+| M7 交付证据签发 | 下载经散列核验的交付证据 | `/sheet/delivery` `/api/delivery/<key>/export` | `app/modules/delivery/checks.py` | `tests/test_delivery.py` `tests/test_sync.py` |
+
+## 换带同步规则
+
+| 规则 | 处理位置 | 测试 |
+|---|---|---|
+| 旧片换带重置时码，字幕按卷同步点锚到母带帧，禁止沿用前一卷偏移 | `app/modules/clock/sync.py` `app/modules/clock/service.py` | `tests/test_sync.py::test_same_timecode_lands_on_each_reels_master_frame` |
+| 同一带位时码跨卷各自落在本卷母带画面 | `app/modules/clock/sync.py` `app/modules/edits/mapping.py` | `tests/test_sync.py::test_same_timecode_lands_on_each_reels_master_frame` |
+| 同卷同步点算出不同偏移，整卷留待复核 | `app/modules/clock/sync.py` | `tests/test_sync.py::test_conflicting_offsets_hold_whole_reel` |
+| 跨卷整句只对齐半边时整句暂扣，签发包不放半句 | `app/modules/edits/mapping.py` `app/modules/delivery/checks.py` | `tests/test_sync.py::test_cross_reel_half_aligned_withholds_full_sentence` |
+| 切版未保留整卷画面时，缺同步点不记作待核 | `app/modules/clock/sync.py` | `tests/test_sync.py::test_reel_without_kept_picture_is_exempt_not_pending` |
+| 签发包带用过的同步点，晚到记录补齐后重算新档 | `app/modules/delivery/service.py` `app/modules/runs/service.py` | `tests/test_sync.py::test_downloaded_package_carries_used_sync_points` |
 
 ## 陷阱登记
 
@@ -29,3 +40,5 @@
 ## 守恒与范围
 
 脏样例 1140 源帧 = 740 交付 + 200 移除 + 200 待证。65 个重叠目标帧独立记录，5 条隔离记录无法量化。原件为带格式列的供应商抽取 CSV，DF 参数固定为 29.97，目标固定 24 fps。
+
+换带样例 `taped` 四卷：R1、R2 同步点一致（偏移 1800），同一带位时码 `FRAME 100` 分别锚到母带 1900；R3 两个同步点给出 2900/3000 两个偏移而整卷复核，跨 R2/R3 的 C303 两个 KEEP 半边共 60 源帧暂扣，仅 40 源帧可签发；R4 整卷 `REMOVE`，缺同步点按豁免不记待核。补齐统一偏移的晚到同步记录后重算，新归档可签发且同步点证据随包下载。

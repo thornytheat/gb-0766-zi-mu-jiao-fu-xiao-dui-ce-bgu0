@@ -5,7 +5,12 @@ from app.pipeline import inspect
 
 
 def test_dirty_cover(dirty):
-    assert dirty['balance']['counts'] == dict(original='1140',delivered='740',removed='200',pending='200',rejected_unmeasurable=5,overlap_target_frames=65)
+    counts = dirty['balance']['counts']
+    assert {key: counts[key] for key in
+            ('original', 'delivered', 'removed', 'pending', 'rejected_unmeasurable', 'overlap_target_frames')
+            } == dict(original='1140', delivered='740', removed='200', pending='200',
+                      rejected_unmeasurable=5, overlap_target_frames=65)
+    assert (counts['signable'], counts['withheld'], counts['exempt_cues']) == ('740', '0', 0)
 
 
 def test_clean_cover():

@@ -3,10 +3,12 @@ from io import StringIO
 from app.problems import Rejection
 
 
-def tabulate(source, aliases, fields):
-    reader = csv.reader(StringIO(source.removeprefix('\ufeff'), newline=''), strict=True)
+def tabulate(source, aliases, fields, optional=()):
+    reader = csv.reader(StringIO(source.removeprefix('﻿'), newline=''), strict=True)
     rows, skipped = [], []
     headings, blanks, data_lines = 1, 0, 0
+    required = set(fields)
+    allowed = required | set(optional)
     try:
         raw_header = next(reader, None)
         if raw_header is None:
@@ -14,7 +16,7 @@ def tabulate(source, aliases, fields):
         if not any(raw_header):
             raise Rejection('BLANK', '文件首行为空')
         header = [aliases.get(field, field) for field in raw_header]
-        if len(header) != len(fields) or set(header) != set(fields):
+        if len(header) != len(raw_header) or set(header) - allowed or not required <= set(header):
             raise Rejection('HEADER', '文件表头不符')
         while True:
             line = reader.line_num + 1
@@ -29,7 +31,10 @@ def tabulate(source, aliases, fields):
             elif len(values) != len(header):
                 skipped.append(dict(line=line, code='WIDTH', raw=values))
             else:
-                rows.append(dict(line=line, raw=values, **dict(zip(header, (v.strip() for v in values)))))
+                clean = {key: value.strip() for key, value in zip(header, values)}
+                for key in optional:
+                    clean.setdefault(key, '')
+                rows.append(dict(line=line, raw=values, **clean))
     except csv.Error as exc:
         raise Rejection('CSV', f'第 {reader.line_num} 行 CSV 损坏') from exc
     if not data_lines:
